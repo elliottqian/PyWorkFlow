@@ -337,7 +337,8 @@ class WorkGraph(object):
         for key in self.node_dict:
             node = self.node_dict[key]
             node.set_restart()
-        logging.info('主线程 重启运行  ------------>' + '\n')
+            logging.info('重新载入后的状态' + '\n' + str(key) + ":" + Status.name[self.node_dict[key]])
+        logging.info('主线程 重启运行  ------------>' + '\n\n')
         self.start_all_script(seconds)
 
 
