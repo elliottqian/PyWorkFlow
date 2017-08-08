@@ -1,0 +1,3 @@
+/home/ndir/qianwei/playlist_member/AllIndex.sh:     /home/ndir/qianwei/playlist_member/PlaylistFromMainpageRecommend.sh,  /home/ndir/qianwei/playlist_member/MoneyPerDay.sh, /home/ndir/qianwei/playlist_member/playlist_member.sh
+/home/ndir/qianwei/playlist_member/MoneyPerDay.sh:  /home/ndir/qianwei/playlist_member/playlist_member.sh
+job_date=$(date -d "-1 day" "+%Y-%m-%d")
