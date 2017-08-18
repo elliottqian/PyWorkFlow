@@ -332,6 +332,11 @@ class WorkGraph(object):
         logging.info('主线程 for循环内:一次循环检查开始, 打印所有节点的状态  ------------>' + '\n' + str(x))
 
     def restart(self, seconds=20):
+        """
+        重启脚本
+        :param seconds:
+        :return:
+        """
         cmd.getstatusoutput("mv " + "log." + time_format + " " + "log." + time_format + ".old")
         self.load_status()
         for key in self.node_dict:
@@ -341,6 +346,36 @@ class WorkGraph(object):
         time.sleep(100)
         logging.info('主线程 重启运行  ------------>' + '\n\n')
         self.start_all_script(seconds)
+
+    def check_hdfs_and_start(self, hdfs_path, check_interval_):
+        """
+        检查hdfs文件路径, 如果都存在, 才会启动工程, 路径用逗号隔开
+        :param hdfs_path:        hdfs 路径, 逗号隔开
+        :param check_interval_:  整个工程检查间隔
+        """
+        i = 0
+        while(True):
+            file_exist = self.check_hdfs(hdfs_path)
+            if file_exist:
+                break
+            time.sleep(check_interval_)
+            i += 1
+            if i >= 600:
+                return
+        logging.info('检查hdfs文件均存在 ------------' + '\n\n')
+        self.start_all_script(check_interval_)
+
+    def check_hdfs(self, hdfs_path):
+        hdfs_paths = hdfs_path.strip().split(u",")
+        all_file_exist = True
+        for hdfs_p in hdfs_paths:
+            hdfs_p = hdfs_p.strip()
+            cmd_ = "hdfs dfs -test -e " + hdfs_p
+            status, _ = cmd.getstatusoutput(cmd_)
+            if status != 0:
+                all_file_exist = False
+                break
+        return all_file_exist
 
 
 class Status(object):
@@ -357,46 +392,51 @@ class ProjectTime(object):
 
 
 if __name__ == "__main__":
-
-    check_interval = 60
-
-    """
-    第一个参数: 是配置文件路径
-    第二个参数: 运行的各个脚本log保存位置
-    第三个参数: 是否重启, false, 不重启
-    第四个参数: work_graph Log保存位置
-    """
-    work_graph_log_path = sys.argv[4]
+    work_graph_log_path_and_name = sys.argv[4]
 
     logging.basicConfig(level=logging.INFO,
-                        filename=work_graph_log_path + "/work_graph_log." + time_format,
+                        filename=work_graph_log_path_and_name + "." + time_format,
                         filemode='w',
                         format='%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s')
 
+    """
+    参数说明
+    1, 配置文件路径
+    2, bash脚本日志路径
+    3, 启动模式, 目前有3种
+    4, py脚本日志路径
+    5, 检查间隔
+    6, 如果是检查hdfs文件后再启动, 这里存放hdfs路径
+    """
     path = sys.argv[1]
     script_log_p = sys.argv[2]
-    is_restart = sys.argv[3]
-    # path = sys.argv[1]
-    # path = "./test_file"
+    start_model = sys.argv[3]
+    check_interval = int(sys.argv[5])
+
     wg = WorkGraph(path)
     wg.set_script_log_path(script_log_p)
-    print script_log_p
     wg.read_config_2()
     wg.print_()
-    if is_restart == "false":
-        wg.start_all_script(check_interval)
-    elif is_restart == "true":
-        wg.restart(check_interval)
 
-    # wg = WorkGraph("test_file")
-    # wg.read_config_2()
-    # wg.print_()
+    if start_model == "start":
+        wg.start_all_script(check_interval)
+    elif start_model == "restart":
+        wg.restart(check_interval)
+    elif start_model == "check_hdfs":
+        hdfs_paths = sys.argv[6]
+        wg.check_hdfs_and_start(hdfs_paths, check_interval)
+
     pass
 
 
 """
 还要实现的功能:
-1, 检查某hdfs几个文件有没有, 如果存在, 才启动脚本
+1, 检查某hdfs几个文件有没有, 如果存在, 才启动脚本  (已经完成)
 2, 打印每个节点的运行时间
 3, 重启部分的mv log有bug
+4, 增加目录状态, 防止一个工程在读取一个目录的时候  另一个工程来写这个目录  一个 rm -r 工程就挂了啊
+   目录状态是全局状态, 多个python脚本应该可以共享
+   首先检查目录状态, 写状态, 读状态, 无操作状态
+                 写状态下不能读, 读状态下不能写, 写状态下不能写  读状态下可以读   状态名称 数字 用这个来加锁  同时防止死锁, 
+                 一次检查一次加载和释放全部可以防止死锁, 或者都按照某个固定的顺序加载可以防止死锁
 """
