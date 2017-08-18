@@ -331,7 +331,7 @@ class WorkGraph(object):
             x.append(str(Status.name[node.status]) + ", ")
         logging.info('主线程 for循环内:一次循环检查开始, 打印所有节点的状态  ------------>' + '\n' + str(x))
 
-    def restart(self, seconds=20):
+    def restart(self, seconds=200):
         """
         重启脚本
         :param seconds:
@@ -387,8 +387,10 @@ class Status(object):
 
 
 class ProjectTime(object):
-
-    restart_interval = 180  # 重启间隔
+    """
+    重启间隔
+    """
+    restart_interval = 300  # 重启间隔
 
 
 if __name__ == "__main__":
