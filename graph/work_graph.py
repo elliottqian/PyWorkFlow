@@ -354,7 +354,7 @@ class WorkGraph(object):
         :param check_interval_:  整个工程检查间隔
         """
         i = 0
-        while(True):
+        while True:
             file_exist = self.check_hdfs(hdfs_path)
             if file_exist:
                 break
@@ -362,6 +362,7 @@ class WorkGraph(object):
             i += 1
             if i >= 600:
                 return
+
         logging.info('检查hdfs文件均存在 ------------' + '\n\n')
         self.start_all_script(check_interval_)
 
@@ -374,6 +375,7 @@ class WorkGraph(object):
             status, _ = cmd.getstatusoutput(cmd_)
             if status != 0:
                 all_file_exist = False
+                logging.info(hdfs_p + '   不存在--------------' + '\n')
                 break
         return all_file_exist
 
@@ -393,8 +395,14 @@ class ProjectTime(object):
     restart_interval = 300  # 重启间隔
 
 
+
+def waitDependenceProject(dependence_project_list):
+    # 检查文件, 成功跳出, 不成功等待, 1分钟检查一次, 5分钟写日志一次
+    while True:
+        pass
+
 if __name__ == "__main__":
-    work_graph_log_path_and_name = sys.argv[4]
+    work_graph_log_path_and_name = sys.argv[4] # 此处包含工程名称
 
     logging.basicConfig(level=logging.INFO,
                         filename=work_graph_log_path_and_name + "." + time_format,
