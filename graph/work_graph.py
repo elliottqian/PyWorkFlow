@@ -5,6 +5,7 @@ import time
 import threading
 import sys
 import logging
+import os
 
 import pickle
 import datetime
@@ -118,10 +119,11 @@ class WorkNode(object):
 
 class WorkGraph(object):
 
-    def __init__(self, config_path):
+    def __init__(self, config_path, project_path_name):
         self.config_path = config_path
         self.node_dict = dict()  # 名字和节点的对应表
         self.script_log_path = None
+        self.project_path_name = project_path_name
         pass
 
     def set_script_log_path(self, script_log_path):
@@ -225,6 +227,9 @@ class WorkGraph(object):
             if self.all_success():
                 for _ in self.node_dict:
                     logging.info('主线程 for循环内:所有节点运行成功')
+                f = codecs.open(self.project_path_name + u"." + time_format, mode="wb")
+                f.write(u"scc")
+                f.close()
                 break
 
     def all_success(self):
@@ -257,7 +262,7 @@ class WorkGraph(object):
             logging.info('主线程 for循环内 check_and_start: 节点等待    ->')
 
         """如果有job挂了, 并且没有节点是运行状态, 并且重启次数全部用完, 就停止, 这里延时0.1秒等待 work_node.start() 成功改变了状态"""
-        time.sleep(0.1)
+        time.sleep(1)
 
         if self.check_failed_job() and self.check_running_node():
             logging.info('主线程 for循环内 check_and_start: 节点等待 准备保存退出->')
@@ -319,9 +324,11 @@ class WorkGraph(object):
         """
         if file_path is None:
             file_path = time_format
+            logging.info('重启文件地址' + time_format)
             pkl_file = open(file_path, 'rb')
             self.node_dict = pickle.load(pkl_file)
             pkl_file.close()
+            logging.info('载入文件结束')
 
     def print_all_status(self):
         x = []
@@ -337,13 +344,13 @@ class WorkGraph(object):
         :param seconds:
         :return:
         """
-        cmd.getstatusoutput("mv " + "log." + time_format + " " + "log." + time_format + ".old")
+        # cmd.getstatusoutput("mv " + "log." + time_format + " " + "log." + time_format + ".old")
         self.load_status()
         for key in self.node_dict:
             node = self.node_dict[key]
             node.set_restart()
-            logging.info('重新载入后的状态' + '\n' + str(key) + ":" + Status.name[self.node_dict[key]])
-        time.sleep(100)
+            # logging.info('重新载入后的状态' + '\n' + str(key) + ":" + Status.name[self.node_dict[key]])
+        time.sleep(10)
         logging.info('主线程 重启运行  ------------>' + '\n\n')
         self.start_all_script(seconds)
 
@@ -366,10 +373,11 @@ class WorkGraph(object):
         logging.info('检查hdfs文件均存在 ------------' + '\n\n')
         self.start_all_script(check_interval_)
 
-    def check_hdfs(self, hdfs_path):
-        hdfs_paths = hdfs_path.strip().split(u",")
+    @staticmethod
+    def check_hdfs(hdfs_path):
+        hdfs_paths_ = hdfs_path.strip().split(u",")
         all_file_exist = True
-        for hdfs_p in hdfs_paths:
+        for hdfs_p in hdfs_paths_:
             hdfs_p = hdfs_p.strip()
             cmd_ = "hdfs dfs -test -e " + hdfs_p
             status, _ = cmd.getstatusoutput(cmd_)
@@ -395,17 +403,33 @@ class ProjectTime(object):
     restart_interval = 300  # 重启间隔
 
 
-
-def waitDependenceProject(dependence_project_list):
+def wait_dependence_project(dependence_projects):
     # 检查文件, 成功跳出, 不成功等待, 1分钟检查一次, 5分钟写日志一次
+    l = dependence_projects.split(u";")
+    i = 0
     while True:
+        i += 1
+        if i >= 6:
+            i = 0
+            logging.info('检查依赖工程中................' + '\n\n')
+
+        success_num = 0
+        for name__ in l:
+            new_name = name__ + u"." + time_format
+            if os.path.isfile(new_name):
+                success_num += 1
+        if success_num >= len(l):
+            logging.info('依赖的工程全部成功' + '\n\n')
+            break
+        time.sleep(60)
         pass
 
 if __name__ == "__main__":
-    work_graph_log_path_and_name = sys.argv[4] # 此处包含工程名称
+    work_graph_log_path = sys.argv[4]  # 此处包含工程名称
+    project_name = sys.argv[7]
 
     logging.basicConfig(level=logging.INFO,
-                        filename=work_graph_log_path_and_name + "." + time_format,
+                        filename=work_graph_log_path + "/" + project_name + "." + time_format,
                         filemode='w',
                         format='%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s')
 
@@ -417,14 +441,24 @@ if __name__ == "__main__":
     4, py脚本日志路径
     5, 检查间隔
     6, 如果是检查hdfs文件后再启动, 这里存放hdfs路径
+    7, 工程名称, 成功之后会创建一个文件
+    8, 依赖工程列表, 用分号隔开
     """
     path = sys.argv[1]
     script_log_p = sys.argv[2]
     start_model = sys.argv[3]
     check_interval = int(sys.argv[5])
+    dependence_project = sys.argv[8]
 
-    wg = WorkGraph(path)
+    project_p_n = work_graph_log_path + "/" + project_name + "_success"
+
+    """等待依赖工程执行完毕"""
+    if dependence_project != u"null":
+        wait_dependence_project(dependence_project)
+
+    wg = WorkGraph(path, project_p_n)
     wg.set_script_log_path(script_log_p)
+
     wg.read_config_2()
     wg.print_()
 
