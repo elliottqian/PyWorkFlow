@@ -85,6 +85,7 @@ class WorkNode(object):
         :return:
         """
         if run_status == 0:
+            time.sleep(1)
             self.status = Status.run_success
             logging.info('子线程内 -------------------------; WordNode, run_script运行成功!! ->' + str(self.node_name))
         else:
