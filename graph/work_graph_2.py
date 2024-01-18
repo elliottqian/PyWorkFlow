@@ -27,14 +27,14 @@ class WorkNode(object):
         self.description = description
         self.next_nodes = set()
         self.previous_nodes = set()
-        self.status = Status.not_run
+        self.status = multiprocessing.Value('i', Status.not_run)
         self.restart_times = 2
         self.script_log_path = script_log_path
         self.run_bash_root_path = run_bash_root_path
         pass
 
     def is_run_success(self):
-        if self.status == Status.run_success:
+        if self.status.value == Status.run_success:
             return True
         else:
             return False
@@ -86,7 +86,7 @@ class WorkNode(object):
         cmd_ = f"bash {os.path.join(self.run_bash_root_path, self.node_name)} > {self.script_log_path}/{log_name} 2>&1"
         logging.info(f'run {self.node_name} cmd {cmd_}')
         # cmd_ = u"bash " + unicode(self.node_name) + u" > " + unicode(self.script_log_path) + u"/" + unicode(log_name) + u" 2>&1"
-        self.status = Status.running
+        self.status.value = Status.running
         status, _ = cmd.getstatusoutput(cmd_)
         logging.info(f'子线程内 -------------------------; WordNode, run_script运行结束 -> {self.node_name} 结束状态: {status}')
         self.check_run_result(status)
@@ -102,7 +102,7 @@ class WorkNode(object):
         """
         if run_status == 0:
             time.sleep(1)
-            self.status = Status.run_success
+            self.status.value = Status.run_success
             logging.info('子线程内 -------------------------; WordNode, run_script运行成功!! ->' + str(self.node_name))
         else:
             if self.restart_times >= 0:
@@ -113,7 +113,7 @@ class WorkNode(object):
                 logging.warn('子线程内 -------------------------; WordNode, run_script重新运行!! ->' + str(self.node_name))
                 self.run_script()
             else:
-                self.status = Status.run_failed
+                self.status.value = Status.run_failed
 
     def check_self(self):
         """
@@ -123,7 +123,7 @@ class WorkNode(object):
         """
         logging.info('主线程 for循环内 check_and_start; WordNode进行自我检查   ->' + str(self.node_name))
         if self.restart_times >= 0:
-            if (self.status == Status.not_run) or (self.status == Status.run_failed):
+            if (self.status.value == Status.not_run) or (self.status.value == Status.run_failed):
                 logging.info('主线程 for循环内 check_and_start; WordNode进行自我检查:通过 ->' + str(self.node_name))
                 return True
             else:
@@ -203,17 +203,17 @@ class WorkflowGraph(object):
             self.print_info("后面的节点" + str(self.node_dict[node].next_nodes))
 
     def check_previous_nodes_status(self, work_node: WorkNode):
-        logging.info('主线程 for循环内 check_last_nodes_status: 检查前面节点的状态\t' + str(work_node.node_name))
+        logging.info(f'检查 {work_node.node_name} 节点前置节点状态: {work_node.previous_nodes}')
         previous_node_names = work_node.previous_nodes
         previous_finish = True
 
+        all_previous_status = []
         for previous_node_name in previous_node_names:
             previous_node_status = self.node_dict[previous_node_name].status
-            logging.info('主线程 for循环内 check_last_nodes_status: 前面节点的状态:' + str(previous_node_status) + ":" + Status.name[previous_node_status])
-            if previous_node_status != Status.run_success:
+            all_previous_status.append(f'{previous_node_name}:\t{Status.name[previous_node_status.value]}')
+            if previous_node_status.value != Status.run_success:
                 previous_finish = False
-                break
-        logging.info('主线程 for循环内 check_last_nodes_status: 前面节点的状态检查结果:\t' + str(previous_finish))
+        logging.info(f'检查结果: previous_finish: {previous_finish} \n')
         return previous_finish
 
     def check_and_start(self, node_name):
@@ -227,7 +227,7 @@ class WorkflowGraph(object):
         """
         work_node = self.node_dict[node_name]
         previous_all_finish = self.check_previous_nodes_status(work_node)
-        logging.info('主线程 for循环内 check_and_start: 当前节点状态    ->' + Status.name[work_node.status])
+        logging.info('主线程 for循环内 check_and_start: 当前节点状态    ->' + Status.name[work_node.status.value])
         if previous_all_finish:
             logging.info('主线程 for循环内 check_and_start: 节点开始运行 ->' + str(work_node.node_name))
             work_node.start()
@@ -301,7 +301,7 @@ class WorkflowGraph(object):
 
         #         time.sleep(0.1)
                 if not node.is_run_success():
-                    logging.info(f'主线程 for循环内:开始检查如下节点和状态    ->            {node_name}: {Status.name[node.status]}')
+                    logging.info(f'主线程 for循环内:开始检查如下节点和状态    ->            {node_name}: {Status.name[node.status.value]}')
                     self.check_and_start(node_name)
         #             logging.info('主线程 for循环内:开始检查如下节点结束 ->' + str(node_name) + "\n\n")
         #
@@ -318,7 +318,7 @@ class WorkflowGraph(object):
         logging.info('主线程 for循环内:一次循环检查开始, 打印所有节点的状态  ------------>')
         for key in self.node_dict:
             node = self.node_dict[key]
-            logging.info(str(key) + ":" + str(Status.name[node.status]))
+            logging.info(str(key) + ":" + str(Status.name[node.status.value]))
         logging.info('主线程 for循环内:一次循环检查开始, 打印所有节点的状态  ------------>  结束' + '\n')
 
     def check_file_exist(self):
